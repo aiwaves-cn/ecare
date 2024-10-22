@@ -26,25 +26,23 @@ CHAT_HISTORY = {}
 @router.post(
     "/user_log_in",
     summary="用户登陆",
-    response_model=ApiResponse[AnswerRequest],
 )
 async def init_session(
     body: UserloginRequest,
-    user_manager: Annotated[User, Depends(get_user)]
 ):  
     user_id = body.user_id
-    print(type(user_manager))
     if not os.path.exists(os.path.join(CACHED,str(user_id)+'.json')):
         empty_list = []
         with open(os.path.join(CACHED,str(user_id)+'.json'),'w') as f:
             json.dump(empty_list, f)
-    await user_manager.set_user_info(body)
-    # else:
-    #     with open(os.path.join(CACHED,str(user_id)+'.json'),'r') as f:
-    #         content = json.load(f)
-    #         CHAT_HISTORY[user_id] = content
-    # session = await history_manager.create_chat_session(current_user.user_id)
-    return ApiResponse(data=AnswerRequest(user_id=user_id))
+    response = await User.get_user_from_sql(user_id)
+    if response['code'] == 1:
+        return {"code":404, "status": "fail","message": response['message']} 
+    data = response['data']
+    data['user_id'] = user_id
+    user = UserloginRequest(**data)
+    await User.set_user_info(user_info = user)
+    return {"code":200, "status": "success","message": data} 
 
 
 @router.post(

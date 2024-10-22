@@ -18,6 +18,7 @@ class File_Parse:
     @staticmethod
     def file_parse(file_path: Path, des_path: Path):
         # assert file_path.endswith('docx') or file_path.endswith('txt'), 'not supported file type'
+        
         assert file_path.suffix in [".docx", ".txt"], "File type not supported"
         if not Path.exists(file_path):
             raise FileExistsError

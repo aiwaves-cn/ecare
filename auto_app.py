@@ -16,7 +16,7 @@ from utilswaves.middlewares.access_monitor_middleware import AccessMonitorMiddle
 from utilswaves.schema import NAMESPACE
 
 from api import api
-from app.config import Settings, BASEDIR
+from core.config import Settings, BASEDIR
 # from app.core.client.redis import redis_client
 from app.core.middleware.auth import AuthBackend, on_auth_error
 

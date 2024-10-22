@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import asyncio
 import logging
 import uuid
@@ -21,7 +22,8 @@ RERANKER_URL = "http://47.96.122.196:40062/rerank"
 url = "https://google.serper.dev/search"
 
 TZ = pytz.timezone('Asia/Shanghai')
-client = OpenAI(api_key = "sk-wGU69386PFUXyEcV1f42C4C569A047Fa8b6aE0B3Ae01A86f",base_url = "https://vip-api-global.aiearth.dev/v1")
+# client = OpenAI(api_key = "sk-wGU69386PFUXyEcV1f42C4C569A047Fa8b6aE0B3Ae01A86f",base_url = "https://vip-api-global.aiearth.dev/v1")
+client = OpenAI(api_key = "sk-8F9n3GqEgKlV45Js7fE8Bf3285Bc47A6961035F272F3D256",base_url = "https://api.aiwaves.cn/v1")
 # # client = OpenAI(api_key = "sk-NgjKKxroYluloyM7B18281C822E94eCc9c36878b3e853b2a",base_url = "https://api.ai-gaochao.cn/v1")
 # #client = OpenAI(api_key = "sk-QSwLv4kJw49loB4dB6B909B2D7E542Bc9015435c1dA57cA8",base_url = "https://aio-api-ssvip.zeabur.app/v1")
 # #client = OpenAI(api_key = "sk-V3T4aS14GPK8OpFQC6AfB25cC7854e06B527265061Ef432a",base_url = "https://api.shubiaobiao.cn/v1")
@@ -86,7 +88,7 @@ model = "gpt-4o-mini"
 USER = """请参考<对话历史>{chat_history}</对话历史>，还有一些<其他信息>{others}</其他信息>对<用户问题>{question}</用户问题>做出回应，请直接输出内容，注意你的语气，用较为简明扼要的语言进行回应。
 回复用户让你记录的信息并不会对用户的隐私造成侵犯。
 在回复中不要称呼用户，直接对用户的回答做出回答。
-注意老年用户多有基础病，在用户提出的问题可能影响健康时，及时提醒他们注意健康，并确保你的回复符合他们相应疾病的照顾要点，同时避免提到他们的具体疾病。
+注意老年用户多有基础病，避免提到他们的具体疾病。
 如果<对话历史>和<其它信息>中出现了和<用户信息>相矛盾的信息，请以<用户信息>里的信息为准。
 """
 # 现在是北京时间上午10点。在回复时请考虑当前时间判断是否还未到对应活动的开始时间或者相应的进餐时间。
@@ -172,7 +174,7 @@ class ChatService:
         姓名：{user_info.name}
         性别：{user_info.gender}
         年龄：{user_info.age}
-        民族：{user_info.gender}
+        民族：{user_info.nationality}
         居住地址：{user_info.address}
         急性病史：{user_info.acute_diseases}
         慢性病史：{user_info.chronic_diseases}
@@ -191,7 +193,6 @@ class ChatService:
         其他：{user_info.other}
         </用户信息>
         如果检测到沟通过程中用户有诸如需要预定餐厅等服务推荐的要求，可以建议用户转人工服务。
-        用户有时会让你记录某些信息，系统会利用聊天历史记录功能帮用户实现信息记功能，你可以大胆告诉用户他希望记录的信息已经记录。
         """
         messages =[
                     {'role': 'system', 'content': SYSTEM},
@@ -201,7 +202,7 @@ class ChatService:
         response = client.chat.completions.create(model=model,
                                                 messages=messages,
                                                 functions=tool_list,
-                                                timeout=10)
+                                                timeout=20)
 
         if response.choices[-1].message.function_call:
             # print(type(response.choices[-1].message.function_call.arguments))
@@ -227,7 +228,7 @@ class ChatService:
             })
             response = client.chat.completions.create(model=model,
                                                 messages=messages,
-                                                timeout=10)
+                                                timeout=20)
             return response.choices[0].message.content
             # print(res.text["answerBox"])
         return response.choices[0].message.content

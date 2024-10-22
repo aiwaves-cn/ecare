@@ -11,9 +11,9 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.openapi.docs import get_swagger_ui_html
 from starlette.middleware.cors import CORSMiddleware
 
-from api.chat import router
+from api import router
 from api.utils import init_logging
-
+from schema.database import create_all
 init_logging(debug=os.environ.get("DEBUG") == "true")
 
 app = FastAPI(
@@ -57,7 +57,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
-
+# create_all()
 if __name__ == '__main__':
     import uvicorn
 

@@ -1,0 +1,17 @@
+version: "3"
+
+services:
+  demo:
+    image: demo:24.09.03
+    environment:
+      APP_NAME: e_care
+      NAMESPACE: dev
+      TZ: Asia/Shanghai
+    volumes:
+      - ./:/code
+    ports:
+      - "40049:8080"
+    command: sh entrypoint.sh
+    labels:
+      - "SERVICE=ai_character"
+      - "NAMESPACE=dev"

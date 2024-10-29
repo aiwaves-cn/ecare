@@ -1,7 +1,7 @@
 from core.config import settings
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.ext.asyncio import async_scoped_session
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, scoped_session
 import redis
 import asyncio
@@ -15,6 +15,7 @@ engine = create_async_engine(
 )
 
 # 创建一个 `Session` 类
+# Session = async_sessionmaker(bind=engine, class_=AsyncSession)
 Session = async_scoped_session(sessionmaker(bind=engine, class_ = AsyncSession), scopefunc=asyncio.current_task)
 
 pool = redis.ConnectionPool.from_url(settings.redis.url)

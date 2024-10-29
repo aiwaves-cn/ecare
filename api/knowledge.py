@@ -82,7 +82,7 @@ async def delete_file(id: str):
     print("文件名:", id)
     print("文件路径:", file_path)
     if not os.path.exists(processed_file_path):
-        raise {"code": 404, "status": "fail","message": "File not found"} 
+        return {"code": 404, "status": "fail","message": "File not found"} 
     try:
         os.remove(file_path+'.txt')
     except:

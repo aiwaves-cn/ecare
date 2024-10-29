@@ -12,15 +12,18 @@ from datetime import datetime
 import pytz
 import requests
 import json
+import random
 from .jina import JinaEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document as langchain_Document
-
+from event.user import User
+from core.knowledge import query_and_rerank
+from pathlib import Path
 EMBEDDING = JinaEmbeddings(url="http://47.96.122.196:40068/embed")
 RERANKER_URL = "http://47.96.122.196:40062/rerank"
 
 url = "https://google.serper.dev/search"
-
+DB = Path(__file__).parent.parent.joinpath('file/knowledge/db')
 TZ = pytz.timezone('Asia/Shanghai')
 # client = OpenAI(api_key = "sk-wGU69386PFUXyEcV1f42C4C569A047Fa8b6aE0B3Ae01A86f",base_url = "https://vip-api-global.aiearth.dev/v1")
 client = OpenAI(api_key = "sk-8F9n3GqEgKlV45Js7fE8Bf3285Bc47A6961035F272F3D256",base_url = "https://api.aiwaves.cn/v1")
@@ -90,9 +93,42 @@ USER = """请参考<对话历史>{chat_history}</对话历史>，还有一些<�
 在回复中不要称呼用户，直接对用户的回答做出回答。
 注意老年用户多有基础病，避免提到他们的具体疾病。
 如果<对话历史>和<其它信息>中出现了和<用户信息>相矛盾的信息，请以<用户信息>里的信息为准。
+如果你获得的信息不足以回答用户的提问，请不要随意回答，适当的情况下可以根据实际情况对用户进行追问。
 """
 # 现在是北京时间上午10点。在回复时请考虑当前时间判断是否还未到对应活动的开始时间或者相应的进餐时间。
 logger = logging.getLogger(__name__)
+
+class Concurrent_Chat:
+    def __init__(self, temperature=1,top_p=1):
+        """
+        model: name of model
+        model_keys: list of api info
+        candidata: the number of usable api for the model
+        failed: set of failed api
+        """
+        self.model:str = 'gpt-4o-mini'
+        self.model_keys:list[dict] = [{"api_key": "sk-8F9n3GqEgKlV45Js7fE8Bf3285Bc47A6961035F272F3D256","base_url": "https://api.aiwaves.cn/v1"},
+                                        {"api_key": "sk-wGU69386PFUXyEcV1f42C4C569A047Fa8b6aE0B3Ae01A86f","base_url": "https://vip-api-global.aiearth.dev/v1"}]
+        self.candidate = len(self.model_keys)
+        self.failed = set()
+        self.temperature = temperature
+        self.top_p = top_p
+    
+    def get_client(self):
+        if self.model_keys:
+            if len(self.failed) == self.candidate:
+                logger.info(f"all apis are unavailable")
+                return None
+            cur = random.randint(0,99)%self.candidate
+            while cur in self.failed:
+                cur = random.randint(0,99)%self.candidate
+            self.failed.add(cur)
+            # logger.info(f"get_client, openai.chat {self.model = }, id:{cur}")
+            return OpenAI(
+                api_key = self.model_keys[cur]['api_key'],
+                base_url = self.model_keys[cur]['base_url']
+            )
+        return zhipu_client
 
 
 CHAT_KNOWLEDGE_ID = 0
@@ -151,14 +187,15 @@ class ChatService:
     def get_answer(user_info: dict, chat_history: List[MessageData], question: str):
         chat = '\n'.join(chat_history[len(chat_history)-40:len(chat_history)])
         others = ''
-        # if len(chat_history) > 40:
-        #     docs = [langchain_Document(page_content=i) for i in chat_history[:len(chat_history)-40]]
-        #     db = FAISS.from_documents(docs,embedding=JinaEmbeddings)
-        #     ret = db.as_retriever(search_kwargs={'k': 5})
-        #     related = ret.invoke(question)
-        #     others ='\n'.join([i.page_content for i in related])
+        if len(chat_history) > 40:
+            docs = [langchain_Document(page_content=i) for i in chat_history[:len(chat_history)-40]]
+            db = FAISS.from_documents(docs,embedding=JinaEmbeddings)
+            ret = db.as_retriever(search_kwargs={'k': 3})
+            related = ret.invoke(question)
+            others +='\n'.join([i.page_content for i in related])
         # beijing_time = datetime.now(TZ)
-
+        rag = query_and_rerank(DB, question, 3)
+        others += '\n'.join([i.page_content for i in rag])
         # 提取年、月、日、时、分、秒
         # year = beijing_time.year
         # month = beijing_time.month
@@ -198,40 +235,56 @@ class ChatService:
                     {'role': 'system', 'content': SYSTEM},
                     {'role': 'user', 'content': USER.format(chat_history=chat,others=others,question=question)},
                     ]
-        print(messages)
-        response = client.chat.completions.create(model=model,
-                                                messages=messages,
-                                                functions=tool_list,
-                                                timeout=20)
-
-        if response.choices[-1].message.function_call:
-            # print(type(response.choices[-1].message.function_call.arguments))
-            payload = json.loads(response.choices[-1].message.function_call.arguments)
-            payload['gl'] = 'cn'
-            payload['hl'] = 'zh-cn'
-            headers = {
-                    'X-API-KEY': '460649774d71a055c1a13cf820bb3a77e6ac9f50',
-                    'Content-Type': 'application/json'
-                    }
-            # print(type(payload))
-            payload = json.dumps(payload, ensure_ascii=False)
-            # print(payload,type(payload))
-            # final = ''
-            # for chunk in response:
-            #     if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content is not None:
-            #         final += chunk.choices[0].delta.content
-            res = requests.request("POST", url, headers=headers, data=payload)
-            messages.append({
-                "role": "function",
-                "name": "Search",
-                "content": res.text,
-            })
-            response = client.chat.completions.create(model=model,
-                                                messages=messages,
-                                                timeout=20)
-            return response.choices[0].message.content
+        
+        # print(messages)
+        cc = Concurrent_Chat()
+        count = 0
+        result = ''
+        while count < 3:
+            try:
+                # print(1)
+                client = cc.get_client()
+                
+                response = client.chat.completions.create(model=model,
+                                                        messages=messages,
+                                                        functions=tool_list,
+                                                        timeout=20)
+                # print(response)
+                if response.choices[-1].message.function_call:
+                    # print(type(response.choices[-1].message.function_call.arguments))
+                    payload = json.loads(response.choices[-1].message.function_call.arguments)
+                    payload['gl'] = 'cn'
+                    payload['hl'] = 'zh-cn'
+                    headers = {
+                            'X-API-KEY': '460649774d71a055c1a13cf820bb3a77e6ac9f50',
+                            'Content-Type': 'application/json'
+                            }
+                    # print(type(payload))
+                    payload = json.dumps(payload, ensure_ascii=False)
+                    # print(payload,type(payload))
+                    # final = ''
+                    # for chunk in response:
+                    #     if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content is not None:
+                    #         final += chunk.choices[0].delta.content
+                    res = requests.request("POST", url, headers=headers, data=payload)
+                    messages.append({
+                        "role": "function",
+                        "name": "Search",
+                        "content": res.text,
+                    })
+                    response = client.chat.completions.create(model=model,
+                                                        messages=messages,
+                                                        timeout=20)
+                result = response.choices[0].message.content
+                break
+            except Exception as e:
+                print(e, count)
+                pass
+            count += 1
             # print(res.text["answerBox"])
-        return response.choices[0].message.content
+        return result
+        
+        
     
 if __name__ == '__main__':
     print(ChatService.get_answer('a',[],'杭州最近有什么新闻？'))

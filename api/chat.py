@@ -13,7 +13,7 @@ from core.chat import ChatService
 from typing import Optional, List
 from schema.session import SendMessageRequest, AnswerRequest, UserloginRequest
 from event.user import User, get_user
-from schema.user import User_info
+from schema.user import User_info, User_info_id
 from core.jina import JinaEmbeddings
 
 logger = logging.getLogger(__name__)
@@ -31,15 +31,12 @@ async def init_session(
     body: UserloginRequest,
 ):  
     user_id = body.user_id
-    if not os.path.exists(os.path.join(CACHED,str(user_id)+'.json')):
-        empty_list = []
-        with open(os.path.join(CACHED,str(user_id)+'.json'),'w') as f:
-            json.dump(empty_list, f)
+    chat_history = await User.get_message(user_id)
+    _ = await User.set_user_chat_history(user_id, chat_history)
     response = await User.get_user_from_sql(user_id)
     if response['code'] == 1:
         return {"code":404, "status": "fail","message": response['message']} 
-    data = response['data']
-    data['user_id'] = user_id
+    data = response['message']
     user = UserloginRequest(**data)
     await User.set_user_info(user_info = user)
     return {"code":200, "status": "success","message": data} 
@@ -47,35 +44,25 @@ async def init_session(
 
 @router.post(
     "/send_msg",
-    summary="发送问题，获取答案",
-    response_model=ApiResponse[AnswerRequest],
+    summary="发送问题，获取答案"
 )
 async def send_msg(
     body: SendMessageRequest,
     user_manager: Annotated[User, Depends(get_user)]
 ):  
     user_id = body.user_id
-    if not os.path.exists(os.path.join(CACHED,str(user_id)+'.json')):
-        history = []
-    else:
-        with open(os.path.join(CACHED,str(user_id)+'.json'),'r') as f:
-            data = f.read().strip()
-            if data:
-                history = json.loads(data)
-            else:
-                history = []
+    _ = await User.add_message(user_id, "user: " + body.text)
+    history = await User.get_user_chat_history(user_id)
     service = ChatService()
     user_info = await user_manager.get_user_info(user_id)
-    user_info = User_info(**user_info)
+    user_info = User_info_id(**user_info)
     print(user_info)
     print(type(user_info))
     ans = await service.chat(user_info=user_info, chat_history=history, text=body.text)
-    history.append(f"用户：{body.text}")
-    history.append(f"小XI：{ans}")
-    # print(history)
-    with open(os.path.join(CACHED,str(user_id)+'.json'),'w') as f:
-        json.dump(history,f,ensure_ascii=False,indent=4)
-    return  ApiResponse(data = AnswerRequest(user_id=body.user_id,text=ans))
+    _ = await User.add_message(user_id, "assistant: " + ans)
+    data = {"user_id":user_id, "text":ans}
+    return  {"code":200, "status": "success","message": data} 
+    # ApiResponse(data = AnswerRequest(user_id=body.user_id,text=ans))
 
 @router.post(
     "/user_log_out",

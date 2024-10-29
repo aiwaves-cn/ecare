@@ -14,7 +14,7 @@ from utilswaves.lifespan_manager import LifespanManager
 from utilswaves.middlewares import HermesAlertMiddleware, AccessLoggerMiddleware
 from utilswaves.middlewares.access_monitor_middleware import AccessMonitorMiddleware
 from utilswaves.schema import NAMESPACE
-
+from schema.database import create_all
 from api import api
 from core.config import Settings, BASEDIR
 # from app.core.client.redis import redis_client
@@ -52,7 +52,7 @@ def create_app(app_settings: Settings, lifespan_manager: LifespanManager = None,
 
     # registry routers
     register_router(app)
-
+    create_all()
     _app = app
     return _app
 

@@ -9,7 +9,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document as langchain_Document
 from typing import Optional
-
+from pathlib import Path
 EMBEDDING = JinaEmbeddings(url="http://47.96.122.196:40068/embed")
 RERANKER_URL = "http://47.96.122.196:40062/rerank"
 
@@ -33,7 +33,7 @@ class File_Parse:
             with open(des_path, 'w') as buffer:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     for line in f:
-                        buffer.write(line+'/n')
+                        buffer.write(line+'\n')
         except Exception as e:
             raise HTTPException(status_code=500,detail=f"An error occurred while processing the file: {str(e)}") 
         return 0
